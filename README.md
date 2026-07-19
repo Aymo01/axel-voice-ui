@@ -10,7 +10,7 @@ Always listening for "Hey Axel"
         ↓ (wake word detected)
 Axel says "Hi! How can I help you today?"
         ↓
-Animated waveform, mic recording begins
+3D wireframe orb animates, mic recording begins
         ↓
 Your speech is transcribed and sent to Axel's backend
         ↓
@@ -25,7 +25,9 @@ Back to listening for "Hey Axel"
 
 - React 18 + TypeScript + Vite
 - Tailwind CSS v4
-- Web Audio API (canvas waveform, mic level metering)
+- Three.js + `@react-three/fiber` + `@react-three/postprocessing` (3D wireframe orb, particle
+  halo, bloom glow)
+- Web Audio API (mic level metering)
 - Web Speech API (`SpeechRecognition` for transcription, `speechSynthesis` for voice output)
 - Picovoice Porcupine (wake-word detection, runs entirely in-browser via WASM)
 - Axios (Axel backend HTTP calls)
@@ -88,10 +90,13 @@ explicitly in the spec, so they're a best guess.
 ```
 src/
   components/
-    WakeWordDetector.tsx   # Wake-word status indicator + idle waveform
-    Waveform.tsx            # Canvas visualization (idle / recording / processing / speaking)
-    ChatDisplay.tsx         # Message history
-    PendingApprovals.tsx    # Approve/Reject cards
+    OrbVisualization.tsx   # 3D wireframe orb: noise-displaced icosahedron, particle
+                           # halo, bloom — reacts to idle/listening/talking/processing
+    orbShaders.ts          # GLSL: simplex-noise vertex displacement + gradient fragment shader
+    WakeWordDetector.tsx   # Wake-word status readout (text only, no visualization)
+    ActivityPanel.tsx      # Right-side HUD terminal log (corner brackets, status dots)
+    ChatDisplay.tsx        # Minimal transcript (last 3 messages, fade-in)
+    PendingApprovals.tsx   # Approve/Reject cards
   hooks/
     useWakeWordDetection.ts # Picovoice Porcupine integration
     useVoiceInput.ts         # SpeechRecognition + mic level metering
@@ -99,6 +104,17 @@ src/
     useAxelAPI.ts            # Axios client for the Axel backend
   App.tsx                   # State machine wiring it all together
 ```
+
+### The orb
+
+`OrbVisualization` renders an `IcosahedronGeometry` as a wireframe, displacing every vertex
+along its normal by a 3D simplex-noise value computed live in the vertex shader (GPU-side, so
+subdivision level and particle count stay cheap). A `Points` halo (~2200 particles) surrounds
+it with a custom twinkle/pulse shader, and `@react-three/postprocessing`'s `Bloom` gives both
+the wireframe and particles their glow. Four animation presets (`idle` / `listening` /
+`talking` / `processing`) lerp the noise amplitude/frequency/speed, rotation speed, glow
+intensity, and particle pulse — `listening` also reacts to live mic level, and `processing`
+adds a scanning-band shader effect. State comes from `App.tsx`'s phase machine.
 
 ## Deployment (Railway)
 
@@ -124,3 +140,16 @@ Both backend and frontend then run on Railway, talking over HTTPS.
 - Wake-word detection requires the manual Picovoice setup above — there's no way to ship a
   working "Hey Axel" model without it (proprietary, per-account files).
 - Approve/Reject endpoint contract is inferred — verify against the real Axel backend.
+- The production bundle is large (~4.7MB) because Picovoice and Three.js both inline sizeable
+  WASM/runtime payloads. Dynamic `import()` code-splitting was tried and reverted — on this
+  Rolldown-based Vite build it silently dropped most of Porcupine's WASM binary (worked in dev,
+  broke in the production bundle), so both libraries are loaded eagerly via static imports.
+- **On the "CORS issue"**: verified directly against the live backend (`OPTIONS` preflight and
+  a real `POST /chat` both come back with `access-control-allow-origin: *`) — CORS is already
+  correctly configured in `Axle/src/index.ts` and deployed. The actual failure behind
+  "Axel's backend is unreachable" is a backend-side 500:
+  `Failed to look up conversation: TypeError: fetch failed`, thrown from the Supabase query in
+  `Axle/src/agent.ts`. That looks like a Supabase connectivity/env-var problem on Railway
+  (`SUPABASE_URL` / `SUPABASE_KEY`), not anything fixable from this frontend repo. The activity
+  log panel now surfaces the real backend response body when a request fails, instead of a
+  generic "unreachable" message, to make this kind of issue easier to spot going forward.

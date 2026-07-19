@@ -24,19 +24,19 @@ export default function ChatDisplay({ messages, interimTranscript }: ChatDisplay
   }
 
   return (
-    <div className="flex w-full max-w-2xl flex-col gap-3 overflow-y-auto px-4" style={{ maxHeight: '40vh' }}>
+    <div className="flex w-full max-w-xl flex-col gap-2.5 overflow-y-auto px-4" style={{ maxHeight: '26vh' }}>
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          className={`flex animate-[axel-fade-in_0.4s_ease-out] ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
         >
           <div
-            className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-lg ${
+            className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-lg backdrop-blur-sm ${
               message.role === 'user'
-                ? 'bg-blue-600/90 text-white'
+                ? 'bg-blue-600/70 text-white'
                 : message.role === 'system'
                   ? 'border border-amber-500/30 bg-amber-500/10 text-amber-200'
-                  : 'border border-cyan-500/20 bg-slate-800/80 text-cyan-50 shadow-cyan-500/10'
+                  : 'border border-cyan-500/20 bg-slate-800/60 text-cyan-50 shadow-cyan-500/10'
             }`}
           >
             {message.text}
